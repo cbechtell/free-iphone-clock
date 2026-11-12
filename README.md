@@ -18,14 +18,6 @@ A full-screen digital wall clock that runs in Safari. It's built for old iPhones
 
 Tap anywhere on the clock to open the settings menu. Pick a font, a color, and 12 or 24 hour, then tap **Done** or tap outside the menu. The menu also closes by itself after 20 seconds.
 
-## Putting it online with GitHub Pages
-
-1. Upload `index.html` and this `README.md` to the repository.
-2. Go to **Settings → Pages**.
-3. Under **Source**, choose **Deploy from a branch**, then select `main` and `/ (root)`, and click **Save**.
-4. After a minute or two, the clock is live at:
-   `https://YOUR-USERNAME.github.io/free-iphone-clock/`
-
 ## Setting up the iPhone
 
 1. Open the clock's address in **Safari**.
