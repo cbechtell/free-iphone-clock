@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Clock">
+<meta name="theme-color" content="#000000">
+<title>Clock</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #000;
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: rgba(0,0,0,0);
+    cursor: default;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    color: #fff;
+    transition: opacity 2s ease;
+  }
+  #time {
+    line-height: 1.1;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  #colon { display: inline-block; transition: opacity 0.3s ease; }
+  #colon.off { opacity: 0.15; }
+  #ampm {
+    font-size: 0.22em;
+    margin-left: 0.15em;
+    letter-spacing: 0.05em;
+  }
+  #date {
+    margin-top: 0.3em;
+    opacity: 0.6;
+    white-space: nowrap;
+    letter-spacing: 0.04em;
+  }
+  #hint {
+    position: absolute;
+    bottom: 12px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 13px;
+    color: #666;
+    transition: opacity 1.5s ease;
+  }
+
+  /* ---------- Settings menu ---------- */
+  #menu {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.88);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+  #menu.open { display: flex; }
+  #panel {
+    width: 100%;
+    max-width: 560px;
+    max-height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 16px 12px 20px;
+    box-sizing: border-box;
+    color: #ddd;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+  .label {
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #888;
+    margin: 14px 4px 8px;
+  }
+  .label:first-child { margin-top: 4px; }
+  .row { display: flex; flex-wrap: wrap; }
+  .font-btn {
+    width: calc(50% - 8px);
+    margin: 4px;
+    box-sizing: border-box;
+    background: #1c1c1e;
+    border: 2px solid #1c1c1e;
+    border-radius: 12px;
+    padding: 8px 6px 6px;
+    text-align: center;
+    overflow: hidden;
+  }
+  @media (min-width: 480px) {
+    .font-btn { width: calc(33.333% - 8px); }
+  }
+  .font-btn .sample {
+    font-size: 30px;
+    line-height: 1.2;
+    color: #fff;
+    white-space: nowrap;
+  }
+  .font-btn .name {
+    font-size: 11px;
+    color: #888;
+    margin-top: 2px;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-weight: 400;
+  }
+  .swatch {
+    width: 40px;
+    height: 40px;
+    margin: 4px 6px;
+    border-radius: 50%;
+    border: 3px solid #000;
+    box-shadow: 0 0 0 2px #333;
+  }
+  .swatch.selected { box-shadow: 0 0 0 2px #fff; }
+  .seg {
+    flex: 1;
+    margin: 4px;
+    padding: 10px 0;
+    text-align: center;
+    background: #1c1c1e;
+    border: 2px solid #1c1c1e;
+    border-radius: 10px;
+    font-size: 15px;
+  }
+  .done {
+    margin: 18px 4px 0;
+    padding: 12px 0;
+    text-align: center;
+    background: #2c2c2e;
+    border-radius: 10px;
+    font-size: 16px;
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+  <div id="time"><span id="hh">--</span><span id="colon">:</span><span id="mm">--</span><span id="ampm"></span></div>
+  <div id="date"></div>
+  <div id="hint">Tap anywhere for settings</div>
+
+  <div id="menu" data-action="close">
+    <div id="panel" data-action="none">
+      <div class="label">Font</div>
+      <div class="row" id="fontRow"></div>
+      <div class="label">Color</div>
+      <div class="row" id="colorRow"></div>
+      <div class="label">Format</div>
+      <div class="row">
+        <div class="seg" id="seg12" data-action="h12">12 hour</div>
+        <div class="seg" id="seg24" data-action="h24">24 hour</div>
+      </div>
+      <div class="done" data-action="close">Done</div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  // ---------- Fonts ----------
+  // These are fonts built into iOS 10, so nothing has to download.
+  // On other devices, the fallbacks after the first name are used.
+  var fonts = [
+    { name: "Classic",    family: '"Helvetica Neue", Helvetica, Arial, sans-serif', weight: 200 },
+    { name: "Modern",     family: '"Avenir Next", Avenir, "Segoe UI", sans-serif', weight: 200 },
+    { name: "Poster",     family: '"Futura-CondensedExtraBold", Futura, Impact, sans-serif', weight: 800 },
+    { name: "Elegant",    family: 'Didot, "Bodoni 72", Georgia, serif', weight: 400 },
+    { name: "Typewriter", family: '"American Typewriter", "Courier New", serif', weight: 300 },
+    { name: "Terminal",   family: 'Menlo, Monaco, "Courier New", monospace', weight: 400 },
+    { name: "Marker",     family: '"Marker Felt", "Comic Sans MS", cursive', weight: 400 },
+    { name: "Chalkboard", family: '"Chalkboard SE", Chalkboard, "Comic Sans MS", cursive', weight: 300 },
+    { name: "Script",     family: '"Snell Roundhand", "Brush Script MT", cursive', weight: 400 },
+    { name: "Engraved",   family: 'Copperplate, "Copperplate Gothic Light", serif', weight: 300 }
+  ];
+
+  // ---------- Colors ----------
+  var themes = [
+    { name: "White", color: "#f2f2f2" },
+    { name: "Red",   color: "#ff3b30" },
+    { name: "Amber", color: "#ffb000" },
+    { name: "Green", color: "#3cff6a" },
+    { name: "Blue",  color: "#4fc3ff" },
+    { name: "Pink",  color: "#ff6ec7" },
+    { name: "Dim",   color: "#555555" }
+  ];
+
+  var days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  var months = ["January","February","March","April","May","June","July",
+                "August","September","October","November","December"];
+
+  // Dim the whole display between these hours (24h clock).
+  var NIGHT_START = 22, NIGHT_END = 7, NIGHT_OPACITY = 0.45;
+
+  // Close the menu by itself after this many seconds with no taps.
+  var MENU_TIMEOUT = 20;
+
+  // ---------- Saved settings ----------
+  var state = { theme: 1, h24: false, font: 0 };
+  try {
+    var saved = JSON.parse(localStorage.getItem("clockPrefs"));
+    if (saved) {
+      if (typeof saved.theme === "number" && saved.theme < themes.length) state.theme = saved.theme;
+      if (typeof saved.h24 === "boolean") state.h24 = saved.h24;
+      if (typeof saved.font === "number" && saved.font < fonts.length) state.font = saved.font;
+    }
+  } catch (e) {}
+
+  function save() {
+    try { localStorage.setItem("clockPrefs", JSON.stringify(state)); } catch (e) {}
+  }
+
+  var timeEl = document.getElementById("time");
+  var hhEl = document.getElementById("hh");
+  var mmEl = document.getElementById("mm");
+  var colonEl = document.getElementById("colon");
+  var ampmEl = document.getElementById("ampm");
+  var dateEl = document.getElementById("date");
+  var hintEl = document.getElementById("hint");
+  var menuEl = document.getElementById("menu");
+  var fontRow = document.getElementById("fontRow");
+  var colorRow = document.getElementById("colorRow");
+  var seg12 = document.getElementById("seg12");
+  var seg24 = document.getElementById("seg24");
+
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+
+  // ---------- Build the menu ----------
+  var fontBtns = [], swatches = [];
+  var i;
+  for (i = 0; i < fonts.length; i++) {
+    var b = document.createElement("div");
+    b.className = "font-btn";
+    b.setAttribute("data-action", "font");
+    b.setAttribute("data-i", i);
+    var sample = document.createElement("div");
+    sample.className = "sample";
+    sample.style.fontFamily = fonts[i].family;
+    sample.style.fontWeight = fonts[i].weight;
+    sample.textContent = "10:47";
+    var nm = document.createElement("div");
+    nm.className = "name";
+    nm.textContent = fonts[i].name;
+    b.appendChild(sample);
+    b.appendChild(nm);
+    fontRow.appendChild(b);
+    fontBtns.push(b);
+  }
+  for (i = 0; i < themes.length; i++) {
+    var s = document.createElement("div");
+    s.className = "swatch";
+    s.style.background = themes[i].color;
+    s.setAttribute("data-action", "color");
+    s.setAttribute("data-i", i);
+    colorRow.appendChild(s);
+    swatches.push(s);
+  }
+
+  function updateMenu() {
+    var c = themes[state.theme].color;
+    for (var j = 0; j < fontBtns.length; j++) {
+      fontBtns[j].style.borderColor = (j === state.font) ? c : "#1c1c1e";
+      fontBtns[j].firstChild.style.color = (j === state.font) ? c : "#fff";
+    }
+    for (var k = 0; k < swatches.length; k++) {
+      swatches[k].className = (k === state.theme) ? "swatch selected" : "swatch";
+    }
+    seg12.style.borderColor = state.h24 ? "#1c1c1e" : c;
+    seg24.style.borderColor = state.h24 ? c : "#1c1c1e";
+    seg12.style.color = state.h24 ? "#ddd" : c;
+    seg24.style.color = state.h24 ? c : "#ddd";
+  }
+
+  // ---------- Clock look ----------
+  function applyLook() {
+    var c = themes[state.theme].color;
+    var f = fonts[state.font];
+    timeEl.style.color = c;
+    dateEl.style.color = c;
+    timeEl.style.fontFamily = f.family;
+    timeEl.style.fontWeight = f.weight;
+    dateEl.style.fontFamily = f.family;
+    dateEl.style.fontWeight = f.weight < 300 ? 300 : f.weight;
+    updateMenu();
+    fit();
+  }
+
+  // Scale the digits to fill the screen, whatever the font or orientation.
+  function fit() {
+    var W = window.innerWidth, H = window.innerHeight;
+    var fs = H * 0.5;
+    timeEl.style.fontSize = fs + "px";
+    var w = timeEl.offsetWidth, h = timeEl.offsetHeight;
+    var scale = Math.min(1, (W * 0.92) / w, (H * 0.62) / h);
+    fs = fs * scale;
+    timeEl.style.fontSize = fs + "px";
+    dateEl.style.fontSize = Math.max(14, fs * 0.16) + "px";
+  }
+
+  // ---------- Ticking ----------
+  var lastMinuteKey = "";
+
+  function render() {
+    var now = new Date();
+    var h = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
+
+    colonEl.className = (s % 2 === 0) ? "" : "off";
+
+    var key = h + ":" + m + ":" + state.h24;
+    if (key !== lastMinuteKey) {
+      lastMinuteKey = key;
+      if (state.h24) {
+        hhEl.textContent = pad(h);
+        ampmEl.textContent = "";
+      } else {
+        var h12 = h % 12;
+        if (h12 === 0) h12 = 12;
+        hhEl.textContent = "" + h12;
+        ampmEl.textContent = h < 12 ? "AM" : "PM";
+      }
+      mmEl.textContent = pad(m);
+      dateEl.textContent = days[now.getDay()] + ", " + months[now.getMonth()] + " " + now.getDate();
+
+      var night = (h >= NIGHT_START || h < NIGHT_END);
+      document.body.style.opacity = night ? NIGHT_OPACITY : 1;
+
+      fit();
+    }
+
+    setTimeout(render, 1000 - (Date.now() % 1000) + 10);
+  }
+
+  // ---------- Menu open/close ----------
+  var menuOpen = false, idleTimer = null;
+
+  function resetIdle() {
+    if (idleTimer) clearTimeout(idleTimer);
+    if (menuOpen) idleTimer = setTimeout(closeMenu, MENU_TIMEOUT * 1000);
+  }
+  function openMenu() {
+    menuOpen = true;
+    menuEl.className = "open";
+    hintEl.style.opacity = 0;
+    updateMenu();
+    resetIdle();
+  }
+  function closeMenu() {
+    menuOpen = false;
+    menuEl.className = "";
+    if (idleTimer) clearTimeout(idleTimer);
+  }
+
+  function handleTap(target) {
+    if (!menuOpen) { openMenu(); return; }
+    resetIdle();
+    var el = target.closest ? target.closest("[data-action]") : null;
+    if (!el) return;
+    var action = el.getAttribute("data-action");
+    var idx = parseInt(el.getAttribute("data-i"), 10);
+    if (action === "close") {
+      closeMenu();
+    } else if (action === "font") {
+      state.font = idx; save(); applyLook();
+    } else if (action === "color") {
+      state.theme = idx; save(); applyLook();
+    } else if (action === "h12" || action === "h24") {
+      state.h24 = (action === "h24"); lastMinuteKey = ""; save(); updateMenu();
+    }
+  }
+
+  // ---------- Touch handling ----------
+  // Treat a touch as a tap only if the finger didn't slide (so the menu can scroll),
+  // and block iOS double-tap zoom and page bouncing.
+  var startX = 0, startY = 0, moved = false;
+  document.addEventListener("touchstart", function (e) {
+    var t = e.touches[0];
+    startX = t.clientX; startY = t.clientY; moved = false;
+  }, false);
+  document.addEventListener("touchmove", function (e) {
+    var t = e.touches[0];
+    if (Math.abs(t.clientX - startX) > 10 || Math.abs(t.clientY - startY) > 10) moved = true;
+    var inPanel = e.target.closest && e.target.closest("#panel");
+    if (!inPanel) e.preventDefault();
+  }, false);
+  document.addEventListener("touchend", function (e) {
+    if (moved) { resetIdle(); return; }
+    e.preventDefault();
+    handleTap(e.target);
+  }, false);
+  document.addEventListener("click", function (e) { handleTap(e.target); }, false);
+  document.addEventListener("gesturestart", function (e) { e.preventDefault(); }, false);
+
+  window.addEventListener("resize", fit, false);
+  window.addEventListener("orientationchange", function () { setTimeout(fit, 300); }, false);
+
+  setTimeout(function () { hintEl.style.opacity = 0; }, 6000);
+
+  applyLook();
+  render();
+})();
+</script>
+</body>
+</html>
