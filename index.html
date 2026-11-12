@@ -30,8 +30,13 @@
     color: #fff;
     transition: opacity 2s ease;
   }
+  #clock {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
   #time {
-    line-height: 1.1;
+    line-height: 0.85;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
@@ -43,7 +48,7 @@
     letter-spacing: 0.05em;
   }
   #date {
-    margin-top: 0.3em;
+    margin-top: 0.15em;
     opacity: 0.6;
     white-space: nowrap;
     letter-spacing: 0.04em;
@@ -148,8 +153,10 @@
 </style>
 </head>
 <body>
-  <div id="time"><span id="hh">--</span><span id="colon">:</span><span id="mm">--</span><span id="ampm"></span></div>
-  <div id="date"></div>
+  <div id="clock">
+    <div id="time"><span id="hh">--</span><span id="colon">:</span><span id="mm">--</span><span id="ampm"></span></div>
+    <div id="date"></div>
+  </div>
   <div id="hint">Tap anywhere for settings</div>
 
   <div id="menu" data-action="close">
@@ -162,6 +169,11 @@
       <div class="row">
         <div class="seg" id="seg12" data-action="h12">12 hour</div>
         <div class="seg" id="seg24" data-action="h24">24 hour</div>
+      </div>
+      <div class="label">Show</div>
+      <div class="row">
+        <div class="seg" id="segAmpm" data-action="toggleAmpm">AM / PM</div>
+        <div class="seg" id="segDate" data-action="toggleDate">Date</div>
       </div>
       <div class="done" data-action="close">Done</div>
     </div>
@@ -207,13 +219,15 @@
   var MENU_TIMEOUT = 20;
 
   // ---------- Saved settings ----------
-  var state = { theme: 1, h24: false, font: 0 };
+  var state = { theme: 1, h24: false, font: 0, showAmpm: true, showDate: true };
   try {
     var saved = JSON.parse(localStorage.getItem("clockPrefs"));
     if (saved) {
       if (typeof saved.theme === "number" && saved.theme < themes.length) state.theme = saved.theme;
       if (typeof saved.h24 === "boolean") state.h24 = saved.h24;
       if (typeof saved.font === "number" && saved.font < fonts.length) state.font = saved.font;
+      if (typeof saved.showAmpm === "boolean") state.showAmpm = saved.showAmpm;
+      if (typeof saved.showDate === "boolean") state.showDate = saved.showDate;
     }
   } catch (e) {}
 
@@ -233,6 +247,9 @@
   var colorRow = document.getElementById("colorRow");
   var seg12 = document.getElementById("seg12");
   var seg24 = document.getElementById("seg24");
+  var segAmpm = document.getElementById("segAmpm");
+  var segDate = document.getElementById("segDate");
+  var clockEl = document.getElementById("clock");
 
   function pad(n) { return n < 10 ? "0" + n : "" + n; }
 
@@ -280,6 +297,14 @@
     seg24.style.borderColor = state.h24 ? c : "#1c1c1e";
     seg12.style.color = state.h24 ? "#ddd" : c;
     seg24.style.color = state.h24 ? c : "#ddd";
+    setToggle(segAmpm, state.showAmpm, c);
+    setToggle(segDate, state.showDate, c);
+  }
+
+  function setToggle(el, on, c) {
+    el.style.borderColor = on ? c : "#1c1c1e";
+    el.style.color = on ? c : "#666";
+    el.style.textDecoration = on ? "none" : "line-through";
   }
 
   // ---------- Clock look ----------
@@ -297,27 +322,36 @@
   }
 
   // Scale the digits to fill the screen, whatever the font or orientation.
+  // Size the time and date together so they fill the screen edge to edge.
+  // The date is sized as a fraction of the time, so one scale factor fits both.
+  var EDGE_W = 0.97, EDGE_H = 0.96, DATE_RATIO = 0.14;
   function fit() {
     var W = window.innerWidth, H = window.innerHeight;
-    var fs = H * 0.5;
+    var fs = 100;
     timeEl.style.fontSize = fs + "px";
-    var w = timeEl.offsetWidth, h = timeEl.offsetHeight;
-    var scale = Math.min(1, (W * 0.92) / w, (H * 0.62) / h);
-    fs = fs * scale;
+    dateEl.style.fontSize = (fs * DATE_RATIO) + "px";
+    var w = clockEl.offsetWidth, h = clockEl.offsetHeight;
+    if (!w || !h) return;
+    fs = fs * Math.min((W * EDGE_W) / w, (H * EDGE_H) / h);
     timeEl.style.fontSize = fs + "px";
-    dateEl.style.fontSize = Math.max(14, fs * 0.16) + "px";
+    dateEl.style.fontSize = (fs * DATE_RATIO) + "px";
   }
 
   // ---------- Ticking ----------
   var lastMinuteKey = "";
 
   function render() {
+    draw();
+    setTimeout(render, 1000 - (Date.now() % 1000) + 10);
+  }
+
+  function draw() {
     var now = new Date();
     var h = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
 
     colonEl.className = (s % 2 === 0) ? "" : "off";
 
-    var key = h + ":" + m + ":" + state.h24;
+    var key = h + ":" + m + ":" + state.h24 + ":" + state.showAmpm + ":" + state.showDate;
     if (key !== lastMinuteKey) {
       lastMinuteKey = key;
       if (state.h24) {
@@ -329,6 +363,8 @@
         hhEl.textContent = "" + h12;
         ampmEl.textContent = h < 12 ? "AM" : "PM";
       }
+      ampmEl.style.display = (!state.h24 && state.showAmpm) ? "inline" : "none";
+      dateEl.style.display = state.showDate ? "block" : "none";
       mmEl.textContent = pad(m);
       dateEl.textContent = days[now.getDay()] + ", " + months[now.getMonth()] + " " + now.getDate();
 
@@ -337,8 +373,6 @@
 
       fit();
     }
-
-    setTimeout(render, 1000 - (Date.now() % 1000) + 10);
   }
 
   // ---------- Menu open/close ----------
@@ -375,7 +409,11 @@
     } else if (action === "color") {
       state.theme = idx; save(); applyLook();
     } else if (action === "h12" || action === "h24") {
-      state.h24 = (action === "h24"); lastMinuteKey = ""; save(); updateMenu();
+      state.h24 = (action === "h24"); save(); updateMenu(); draw();
+    } else if (action === "toggleAmpm") {
+      state.showAmpm = !state.showAmpm; save(); updateMenu(); draw();
+    } else if (action === "toggleDate") {
+      state.showDate = !state.showDate; save(); updateMenu(); draw();
     }
   }
 
