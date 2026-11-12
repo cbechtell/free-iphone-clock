@@ -43,7 +43,7 @@
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
-  #colon { display: inline-block; transition: opacity 0.3s ease; }
+  #colon { display: inline-block; position: relative; transition: opacity 0.3s ease; }
   #colon.off { opacity: 0.15; }
   #ampm {
     font-size: 0.22em;
@@ -144,6 +144,30 @@
     border-radius: 10px;
     font-size: 15px;
   }
+  .slider-row {
+    display: flex;
+    align-items: center;
+    margin: 4px;
+    padding: 10px 12px;
+    background: #1c1c1e;
+    border-radius: 10px;
+  }
+  .slider-row input {
+    flex: 1;
+    margin: 0 10px 0 0;
+  }
+  .slider-row .val {
+    width: 44px;
+    text-align: right;
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+  }
+  .reset {
+    margin-left: 10px;
+    font-size: 13px;
+    color: #888;
+    padding: 4px 6px;
+  }
   .done {
     margin: 18px 4px 0;
     padding: 12px 0;
@@ -177,6 +201,13 @@
       <div class="row">
         <div class="seg" id="segAmpm" data-action="toggleAmpm">AM / PM</div>
         <div class="seg" id="segDate" data-action="toggleDate">Date</div>
+        <div class="seg" id="segBlink" data-action="toggleBlink">Blink</div>
+      </div>
+      <div class="label">Number spacing</div>
+      <div class="slider-row">
+        <input type="range" id="spacing" min="-30" max="30" step="1">
+        <span class="val" id="spacingVal">0</span>
+        <span class="reset" data-action="resetSpacing">Reset</span>
       </div>
       <div class="done" data-action="close">Done</div>
       <div id="version" style="text-align:center;font-size:11px;color:#555;margin-top:12px;"></div>
@@ -188,7 +219,7 @@
   // ---------- Version ----------
   // Change this whenever you upload a new index.html. Phones running an older
   // version notice the new number and reload themselves.
-  var VERSION = "3";
+  var VERSION = "5";
   var UPDATE_CHECK_MINUTES = 30;
 
   // ---------- Fonts ----------
@@ -229,7 +260,10 @@
   var MENU_TIMEOUT = 20;
 
   // ---------- Saved settings ----------
-  var state = { theme: 1, h24: false, font: 0, showAmpm: true, showDate: true };
+  // spacing is in hundredths of the digit size (-2 = slightly tight).
+  var DEFAULT_SPACING = -2;
+  var state = { theme: 1, h24: false, font: 0, showAmpm: true, showDate: true,
+                blink: true, spacing: DEFAULT_SPACING };
   try {
     var saved = JSON.parse(localStorage.getItem("clockPrefs"));
     if (saved) {
@@ -238,6 +272,8 @@
       if (typeof saved.font === "number" && saved.font < fonts.length) state.font = saved.font;
       if (typeof saved.showAmpm === "boolean") state.showAmpm = saved.showAmpm;
       if (typeof saved.showDate === "boolean") state.showDate = saved.showDate;
+      if (typeof saved.blink === "boolean") state.blink = saved.blink;
+      if (typeof saved.spacing === "number") state.spacing = saved.spacing;
     }
   } catch (e) {}
 
@@ -260,6 +296,9 @@
   var segAmpm = document.getElementById("segAmpm");
   var segDate = document.getElementById("segDate");
   var clockEl = document.getElementById("clock");
+  var segBlink = document.getElementById("segBlink");
+  var spacingEl = document.getElementById("spacing");
+  var spacingValEl = document.getElementById("spacingVal");
 
   function pad(n) { return n < 10 ? "0" + n : "" + n; }
 
@@ -309,6 +348,9 @@
     seg24.style.color = state.h24 ? c : "#ddd";
     setToggle(segAmpm, state.showAmpm, c);
     setToggle(segDate, state.showDate, c);
+    setToggle(segBlink, state.blink, c);
+    spacingEl.value = state.spacing;
+    spacingValEl.textContent = state.spacing;
   }
 
   function setToggle(el, on, c) {
@@ -327,8 +369,63 @@
     timeEl.style.fontWeight = f.weight;
     dateEl.style.fontFamily = f.family;
     dateEl.style.fontWeight = f.weight < 300 ? 300 : f.weight;
+    centerColon();
+    applySpacing();
     updateMenu();
+  }
+
+  // Space between the characters of the time. The negative margin on the minutes
+  // cancels the extra space after the last digit, so the time stays centered.
+  function applySpacing() {
+    var sp = state.spacing / 100;
+    timeEl.style.letterSpacing = sp + "em";
+    mmEl.style.marginRight = (-sp) + "em";
     fit();
+  }
+
+  // Each font puts its colon at a different height, usually low near the baseline.
+  // Draw a digit and a colon in the current font on a hidden canvas, find where
+  // the ink actually is, and nudge the colon so its middle lines up with the
+  // middle of the digits.
+  var inkCanvas = document.createElement("canvas");
+  var INK = 200;
+  inkCanvas.width = INK * 3;
+  inkCanvas.height = INK * 2;
+
+  function inkRows(text, fontStr) {
+    var ctx = inkCanvas.getContext("2d");
+    ctx.clearRect(0, 0, inkCanvas.width, inkCanvas.height);
+    ctx.font = fontStr;
+    ctx.fillStyle = "#000";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText(text, INK * 0.2, INK * 1.4);
+    var data = ctx.getImageData(0, 0, inkCanvas.width, inkCanvas.height).data;
+    var top = -1, bottom = -1, W = inkCanvas.width;
+    for (var y = 0; y < inkCanvas.height; y++) {
+      for (var x = 0; x < W; x++) {
+        if (data[(y * W + x) * 4 + 3] > 40) {
+          if (top < 0) top = y;
+          bottom = y;
+          break;
+        }
+      }
+    }
+    return top < 0 ? null : { top: top, bottom: bottom };
+  }
+
+  function centerColon() {
+    var f = fonts[state.font];
+    var fontStr = f.weight + " " + INK + "px " + f.family;
+    try {
+      var digits = inkRows("0", fontStr);
+      var colon = inkRows(":", fontStr);
+      if (!digits || !colon) { colonEl.style.top = "0"; return; }
+      var digitMid = (digits.top + digits.bottom) / 2;
+      var colonMid = (colon.top + colon.bottom) / 2;
+      colonEl.style.top = ((digitMid - colonMid) / INK) + "em";
+    } catch (e) {
+      colonEl.style.top = "0";
+    }
   }
 
   // Scale the digits to fill the screen, whatever the font or orientation.
@@ -359,7 +456,7 @@
     var now = new Date();
     var h = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
 
-    colonEl.className = (s % 2 === 0) ? "" : "off";
+    colonEl.className = (!state.blink || s % 2 === 0) ? "" : "off";
 
     var key = h + ":" + m + ":" + state.h24 + ":" + state.showAmpm + ":" + state.showDate;
     if (key !== lastMinuteKey) {
@@ -381,7 +478,7 @@
       var night = (h >= NIGHT_START || h < NIGHT_END);
       document.body.style.opacity = night ? NIGHT_OPACITY : 1;
 
-      fit();
+      applySpacing();
     }
   }
 
@@ -424,8 +521,22 @@
       state.showAmpm = !state.showAmpm; save(); updateMenu(); draw();
     } else if (action === "toggleDate") {
       state.showDate = !state.showDate; save(); updateMenu(); draw();
+    } else if (action === "toggleBlink") {
+      state.blink = !state.blink; save(); updateMenu(); draw();
+    } else if (action === "resetSpacing") {
+      state.spacing = DEFAULT_SPACING; save(); updateMenu(); applySpacing();
     }
   }
+
+  // Spacing slider: update live while dragging.
+  function onSpacing() {
+    state.spacing = parseInt(spacingEl.value, 10) || 0;
+    spacingValEl.textContent = state.spacing;
+    applySpacing();
+    resetIdle();
+  }
+  spacingEl.addEventListener("input", onSpacing, false);
+  spacingEl.addEventListener("change", function () { onSpacing(); save(); }, false);
 
   // ---------- Touch handling ----------
   // Treat a touch as a tap only if the finger didn't slide (so the menu can scroll),
@@ -442,7 +553,7 @@
     if (!inPanel) e.preventDefault();
   }, false);
   document.addEventListener("touchend", function (e) {
-    if (moved) { resetIdle(); return; }
+    if (moved || e.target === spacingEl) { resetIdle(); return; }
     e.preventDefault();
     handleTap(e.target);
   }, false);
