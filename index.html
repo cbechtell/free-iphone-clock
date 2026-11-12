@@ -7,6 +7,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Clock">
 <meta name="theme-color" content="#000000">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Clock</title>
 <style>
   html, body {
@@ -176,11 +179,18 @@
         <div class="seg" id="segDate" data-action="toggleDate">Date</div>
       </div>
       <div class="done" data-action="close">Done</div>
+      <div id="version" style="text-align:center;font-size:11px;color:#555;margin-top:12px;"></div>
     </div>
   </div>
 
 <script>
 (function () {
+  // ---------- Version ----------
+  // Change this whenever you upload a new index.html. Phones running an older
+  // version notice the new number and reload themselves.
+  var VERSION = "3";
+  var UPDATE_CHECK_MINUTES = 30;
+
   // ---------- Fonts ----------
   // These are fonts built into iOS 10, so nothing has to download.
   // On other devices, the fallbacks after the first name are used.
@@ -443,6 +453,29 @@
   window.addEventListener("orientationchange", function () { setTimeout(fit, 300); }, false);
 
   setTimeout(function () { hintEl.style.opacity = 0; }, 6000);
+
+  // ---------- Auto-update ----------
+  // Every so often, download a fresh copy of this page (the ?check= part
+  // skips any cached copy) and compare version numbers. If it's newer,
+  // reload with a new address so the phone can't fall back to its old copy.
+  document.getElementById("version").textContent = "Version " + VERSION;
+
+  function checkForUpdate() {
+    try {
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", location.pathname + "?check=" + Date.now(), true);
+      xhr.onload = function () {
+        if (xhr.status !== 200) return;
+        var match = /var VERSION = "([^"]+)"/.exec(xhr.responseText);
+        if (match && match[1] !== VERSION && !menuOpen) {
+          location.replace(location.pathname + "?v=" + encodeURIComponent(match[1]));
+        }
+      };
+      xhr.send();
+    } catch (e) {}
+  }
+  setTimeout(checkForUpdate, 5000);
+  setInterval(checkForUpdate, UPDATE_CHECK_MINUTES * 60 * 1000);
 
   applyLook();
   render();
