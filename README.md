@@ -1,3 +1,8 @@
+# Setup
+Go to this link on your old iPhone
+[https://cbechtell.github.io/free-iphone-clock/](https://cbechtell.github.io/free-iphone-clock/)
+Done!
+
 # Free iPhone Clock
 
 A full-screen digital wall clock that runs in Safari. It's built for old iPhones, like the iPhone 5c on iOS 10, that can't run modern clock apps. It's one HTML file with no app, no ads, and no tracking, and it works on any phone, tablet, or computer.
@@ -18,18 +23,13 @@ A full-screen digital wall clock that runs in Safari. It's built for old iPhones
 
 Tap anywhere on the clock to open the settings menu. Pick a font, a color, and 12 or 24 hour, then tap **Done** or tap outside the menu. The menu also closes by itself after 20 seconds.
 
-## Setting up the iPhone
+## MORE Setup (for iphones)
 
 1. Open the clock's address in **Safari**.
 2. Tap the **Share** button, then **Add to Home Screen**. Launch the clock from that icon so it opens full screen without Safari's address bar.
 3. Keep the screen on: **Settings → Display & Brightness → Auto-Lock → Never**.
 4. Optional, to lock the phone to the clock: turn on **Guided Access** in **Settings → General → Accessibility → Guided Access**. Open the clock and triple-click the Home button to start it. Triple-click again and enter the passcode to exit.
 5. Turn the screen brightness down. The clock looks better and the backlight lasts longer.
-
-## Hardware notes
-
-- The iPhone 5c has an LCD screen, so leaving the clock on won't cause burn-in.
-- A phone that stays plugged in at 100% for months or years can have its battery swell. Check it every few months. If the screen starts lifting away from the body, unplug it and have the battery replaced or removed.
 
 ## Customizing
 
