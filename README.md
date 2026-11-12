@@ -1,6 +1,8 @@
 # Setup
-Go to this link on your old iPhone
+Go to this link on your old iPhone.
+
 [https://cbechtell.github.io/free-iphone-clock/](https://cbechtell.github.io/free-iphone-clock/)
+
 Done!
 
 # Free iPhone Clock
